@@ -1,0 +1,50 @@
+{
+  "name": "ernestdefoe/janitor",
+  "description": "Janitor for Flarum 2 — automated, rules-based discussion housekeeping. Define rules that periodically find discussions in chosen tags matching conditions (age, tags, reply count) and hide, lock, retag/move, or delete them. Scheduler-driven, with a global dry-run, per-run caps, and an action log.",
+  "keywords": ["flarum", "flarum-extension", "moderation", "automation", "cleanup", "archive", "scheduler"],
+  "type": "flarum-extension",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "ernestdefoe",
+      "email": "ernestdefoe@gmail.com"
+    }
+  ],
+  "homepage": "https://github.com/ernestdefoe/janitor",
+  "support": {
+    "issues": "https://github.com/ernestdefoe/janitor/issues",
+    "source": "https://github.com/ernestdefoe/janitor"
+  },
+  "require": {
+    "php": "^8.3",
+    "flarum/core": "^2.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "ErnestDefoe\\Janitor\\": "src/"
+    }
+  },
+  "extra": {
+    "flarum-extension": {
+      "title": "Janitor",
+      "category": "moderation",
+      "icon": {
+        "name": "fas fa-broom",
+        "backgroundColor": "#3b8c5a",
+        "color": "#fff"
+      },
+      "optional-dependencies": [
+        "flarum/tags"
+      ]
+    },
+    "flarum-cli": {
+      "modules": {
+        "js": true,
+        "css": true,
+        "locale": true
+      }
+    }
+  },
+  "minimum-stability": "beta",
+  "prefer-stable": true
+}

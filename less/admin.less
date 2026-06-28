@@ -1,0 +1,160 @@
+.JanitorPage {
+  margin-top: 8px;
+}
+
+.JanitorRules {
+  border: 1px solid var(--control-bg, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 6px 0 12px;
+}
+.JanitorRules-empty,
+.JanitorLog-empty {
+  padding: 14px;
+  color: var(--muted-color, #888);
+  font-size: 13px;
+}
+
+.JanitorRule {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--control-bg, rgba(0, 0, 0, 0.08));
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+.JanitorRule-main {
+  flex: 1;
+  min-width: 0;
+}
+.JanitorRule-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}
+.JanitorRule-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-color, #aaa);
+  flex: 0 0 auto;
+
+  &.is-on {
+    background: #3b8c5a;
+  }
+}
+.JanitorRule-summary {
+  font-size: 12px;
+  color: var(--muted-color, #888);
+  margin-top: 3px;
+}
+.JanitorRule-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* Tag picker (chips) */
+.JanitorTagPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.JanitorTag {
+  --tag-color: var(--primary-color, #5b3df5);
+  border: 1px solid var(--tag-color);
+  background: transparent;
+  color: var(--text-color, inherit);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12px;
+  cursor: pointer;
+
+  &.is-on {
+    background: var(--tag-color);
+    color: #fff;
+  }
+}
+
+/* Rule editor modal */
+.JanitorRuleModal-h {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-color, #888);
+}
+.JanitorRuleModal-row {
+  display: flex;
+  gap: 12px;
+
+  > .Form-group {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
+.JanitorRuleModal-warn {
+  background: var(--alert-error-bg, #fde8e8);
+  color: var(--alert-error-color, #a12622);
+  border-radius: 6px;
+  padding: 8px 11px;
+  font-size: 12px;
+  margin: 4px 0 10px;
+}
+
+/* Action log */
+.JanitorLog {
+  margin-top: 18px;
+}
+.JanitorLog-list {
+  border: 1px solid var(--control-bg, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.JanitorLog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--control-bg, rgba(0, 0, 0, 0.06));
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+.JanitorLog-time {
+  color: var(--muted-color, #888);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.JanitorLog-dry {
+  background: var(--control-bg, #eee);
+  color: var(--muted-color, #777);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+.JanitorLog-action {
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.JanitorLog-disc {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.JanitorLog-rule {
+  color: var(--muted-color, #888);
+  flex: 0 0 auto;
+}
