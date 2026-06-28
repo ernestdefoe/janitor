@@ -4,7 +4,12 @@ namespace ErnestDefoe\Janitor;
 
 use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
+use Flarum\Discussion\Event\Deleted;
+use Flarum\Discussion\Event\Hidden;
+use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
+use Flarum\User\User;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -17,10 +22,31 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class Janitor
 {
+    protected ?User $actor = null;
+    protected bool $actorResolved = false;
+
     public function __construct(
         protected ConnectionInterface $db,
-        protected SettingsRepositoryInterface $settings
+        protected SettingsRepositoryInterface $settings,
+        protected Dispatcher $events
     ) {
+    }
+
+    /**
+     * A system actor (first admin) to attribute actions to, so audit-log
+     * extensions — which hook the core domain events Janitor dispatches — record
+     * a real user. Null is fine for Hidden/Deleted; the tag event needs it.
+     */
+    protected function actor(): ?User
+    {
+        if (! $this->actorResolved) {
+            $this->actorResolved = true;
+            $this->actor = User::query()
+                ->whereHas('groups', fn ($q) => $q->where('id', Group::ADMINISTRATOR_ID))
+                ->first();
+        }
+
+        return $this->actor;
     }
 
     /** Run every enabled rule that is due for its cadence. */
@@ -125,10 +151,12 @@ class Janitor
     protected function apply(Rule $rule, Discussion $d): void
     {
         $schema = $this->db->getSchemaBuilder();
+        $actor = $this->actor();
 
         switch ($rule->action) {
             case 'hide':
-                $d->hide()->save();
+                $d->hide($actor)->save();
+                $this->events->dispatch(new Hidden($d, $actor));
                 break;
 
             case 'delete':
@@ -138,6 +166,7 @@ class Janitor
                     $this->db->table('discussion_tag')->where('discussion_id', $d->id)->delete();
                 }
                 $d->delete();
+                $this->events->dispatch(new Deleted($d, $actor));
                 $this->recount($tagIds);
                 break;
 
@@ -146,21 +175,60 @@ class Janitor
                 if ($schema->hasColumn('discussions', 'is_locked')) {
                     $d->is_locked = $rule->action === 'lock';
                     $d->save();
+                    $this->dispatchExt(
+                        'Flarum\\Lock\\Event\\DiscussionWas' . ($rule->action === 'lock' ? 'Locked' : 'Unlocked'),
+                        fn ($cls) => $actor ? new $cls($d, $actor) : null
+                    );
                 }
                 break;
 
             case 'add_tag':
+                $old = $this->discussionTagIds($d->id);
                 $this->attach($d, (array) $rule->action_tag_ids);
+                $this->dispatchTagged($d, $old, $actor);
                 break;
 
             case 'remove_tag':
+                $old = $this->discussionTagIds($d->id);
                 $this->detach($d, (array) $rule->action_tag_ids);
+                $this->dispatchTagged($d, $old, $actor);
                 break;
 
             case 'move':
+                $old = $this->discussionTagIds($d->id);
                 $this->detach($d, (array) $rule->scope_tag_ids);
                 $this->attach($d, (array) $rule->action_tag_ids);
+                $this->dispatchTagged($d, $old, $actor);
                 break;
+        }
+    }
+
+    /** Fire flarum/tags' DiscussionWasTagged so audit logs record retag/move. */
+    protected function dispatchTagged(Discussion $d, array $oldTagIds, ?User $actor): void
+    {
+        $tagCls = 'Flarum\\Tags\\Tag';
+        if (! $actor || ! class_exists($tagCls)) {
+            return;
+        }
+        $this->dispatchExt('Flarum\\Tags\\Event\\DiscussionWasTagged', function ($cls) use ($d, $actor, $oldTagIds, $tagCls) {
+            $old = $tagCls::query()->whereIn('id', array_filter($oldTagIds))->get()->all();
+
+            return new $cls($d, $actor, $old);
+        });
+    }
+
+    /** Dispatch an optional-extension event if its class exists; never throw. */
+    protected function dispatchExt(string $class, callable $make): void
+    {
+        if (! class_exists($class)) {
+            return;
+        }
+        try {
+            if ($event = $make($class)) {
+                $this->events->dispatch($event);
+            }
+        } catch (\Throwable $e) {
+            // Audit integration is best-effort and must never break the action.
         }
     }
 

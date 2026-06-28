@@ -22,6 +22,10 @@ work.
   **Preview** any rule on demand from the admin page.
 - **Global dry-run** — preview everything: rules log what they *would* do and
   change nothing. Flip it off when you're confident.
+- **Audit-log friendly** — every live action dispatches the matching Flarum
+  domain event (`Hidden`, `Deleted`, tag/lock events), so audit-log /
+  action-log extensions record Janitor's actions automatically, attributed to an
+  admin. (Dry-run previews never emit them.)
 - **Safety** — stickied and locked discussions are never touched, every run is
   capped (default 100 actions), permanent delete is opt-in per rule, and every
   (would-be) action is written to an **action log**.
