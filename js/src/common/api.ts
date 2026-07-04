@@ -10,6 +10,8 @@ export interface RuleConditions {
   lacksTagIds?: number[];
   minReplies?: number | '';
   maxReplies?: number | '';
+  includeLocked?: boolean;
+  includeSticky?: boolean;
 }
 
 export interface Rule {

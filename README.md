@@ -26,9 +26,14 @@ work.
   domain event (`Hidden`, `Deleted`, tag/lock events), so audit-log /
   action-log extensions record Janitor's actions automatically, attributed to an
   admin. (Dry-run previews never emit them.)
-- **Safety** — stickied and locked discussions are never touched, every run is
-  capped (default 100 actions), permanent delete is opt-in per rule, and every
-  (would-be) action is written to an **action log**.
+- **Safety** — stickied and locked discussions are protected by default, every
+  run is capped (default 100 actions), permanent delete is opt-in per rule, and
+  every (would-be) action is written to an **action log**. A rule can opt in to
+  **include locked** (e.g. archiving closed-and-locked sale threads) or
+  **include stickied** discussions when that's exactly what it's for; the
+  Unlock action always includes locked discussions.
+- **Every condition is optional** — a rule can match on tags alone (no
+  inactivity needed), on inactivity alone, or any combination.
 
 ## Install
 

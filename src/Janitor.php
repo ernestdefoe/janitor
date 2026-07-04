@@ -62,8 +62,13 @@ class Janitor
         return $out;
     }
 
-    /** Run a single rule now. Returns a summary the admin UI / command can show. */
-    public function runRule(Rule $rule, bool $dry): array
+    /**
+     * Run a single rule now. Returns a summary the admin UI / command can show.
+     * $touchSchedule=false keeps an on-demand PREVIEW from advancing
+     * last_run_at — otherwise previewing a daily rule silently postpones its
+     * next real scheduled run by a day.
+     */
+    public function runRule(Rule $rule, bool $dry, bool $touchSchedule = true): array
     {
         $cap = max(1, (int) ($this->settings->get('ernestdefoe-janitor.cap') ?: 100));
         $matches = $this->query($rule)->limit($cap)->get();
@@ -77,8 +82,10 @@ class Janitor
             $this->log($rule, $discussion, $dry);
         }
 
-        $rule->last_run_at = Carbon::now();
-        $rule->save();
+        if ($touchSchedule) {
+            $rule->last_run_at = Carbon::now();
+            $rule->save();
+        }
 
         return [
             'rule' => $rule->name,
@@ -137,11 +144,17 @@ class Janitor
             $q->where('comment_count', '<=', ((int) $c['maxReplies']) + 1);
         }
 
-        // Never touch stickied or locked discussions (when those extensions exist).
-        if ($schema->hasColumn('discussions', 'is_sticky')) {
+        // Stickied and locked discussions are protected by default, but a rule
+        // can opt in per flag — e.g. archiving closed-and-locked sale threads,
+        // which the blanket guard used to silently exclude. The `unlock`
+        // action always includes locked discussions: with the guard applied it
+        // could never match the very threads it exists to unlock.
+        $includeSticky = ! empty($c['includeSticky']);
+        $includeLocked = ! empty($c['includeLocked']) || $rule->action === 'unlock';
+        if (! $includeSticky && $schema->hasColumn('discussions', 'is_sticky')) {
             $q->where(fn ($w) => $w->where('is_sticky', false)->orWhereNull('is_sticky'));
         }
-        if ($schema->hasColumn('discussions', 'is_locked')) {
+        if (! $includeLocked && $schema->hasColumn('discussions', 'is_locked')) {
             $q->where(fn ($w) => $w->where('is_locked', false)->orWhereNull('is_locked'));
         }
 

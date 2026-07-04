@@ -59,6 +59,9 @@ class SaveRuleController implements RequestHandlerInterface
         if (isset($c['maxReplies']) && $c['maxReplies'] !== '' && $c['maxReplies'] !== null) {
             $out['maxReplies'] = max(0, (int) $c['maxReplies']);
         }
+        // Per-rule opt-outs from the sticky/locked safety guard (default: protected).
+        $out['includeSticky'] = ! empty($c['includeSticky']);
+        $out['includeLocked'] = ! empty($c['includeLocked']);
 
         return $out;
     }

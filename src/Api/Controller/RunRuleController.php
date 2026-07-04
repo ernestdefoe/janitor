@@ -25,6 +25,8 @@ class RunRuleController implements RequestHandlerInterface
         $rule = Rule::findOrFail((int) Arr::get($request->getQueryParams(), 'id'));
         $dry = filter_var(Arr::get($request->getQueryParams(), 'dry'), FILTER_VALIDATE_BOOLEAN) || $this->janitor->globalDryRun();
 
-        return new JsonResponse(['data' => $this->janitor->runRule($rule, $dry)]);
+        // A dry on-demand preview must not advance the rule's schedule clock —
+        // previewing a daily rule would otherwise postpone its next real run.
+        return new JsonResponse(['data' => $this->janitor->runRule($rule, $dry, touchSchedule: ! $dry)]);
     }
 }

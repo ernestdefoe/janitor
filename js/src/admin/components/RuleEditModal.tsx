@@ -44,6 +44,7 @@ export default class RuleEditModal extends Modal {
       this.group(t('rules.scope'), this.tagPicker(r.scope_tag_ids!), t('rules.scope_help')),
 
       m('h4.JanitorRuleModal-h', t('rules.conditions')),
+      m('p.helpText', t('rules.conditions_help')),
       m('.JanitorRuleModal-row', [
         this.group(
           t('cond.age_days'),
@@ -60,6 +61,11 @@ export default class RuleEditModal extends Modal {
         this.group(t('cond.min_replies'), m('input.FormControl', { type: 'number', min: 0, value: c.minReplies ?? '', oninput: (e: any) => (c.minReplies = e.target.value === '' ? '' : Number(e.target.value)) })),
         this.group(t('cond.max_replies'), m('input.FormControl', { type: 'number', min: 0, value: c.maxReplies ?? '', oninput: (e: any) => (c.maxReplies = e.target.value === '' ? '' : Number(e.target.value)) })),
       ]),
+      m('.Form-group', [
+        m(Switch, { state: !!c.includeLocked, onchange: (v: boolean) => (c.includeLocked = v) }, t('cond.include_locked')),
+        m('p.helpText', t('cond.include_locked_help')),
+      ]),
+      m('.Form-group', m(Switch, { state: !!c.includeSticky, onchange: (v: boolean) => (c.includeSticky = v) }, t('cond.include_sticky'))),
 
       m('h4.JanitorRuleModal-h', t('rules.action')),
       this.group(t('rules.action'), this.select(r.action!, ACTIONS.map((a) => [a, t('action.' + a)]), (v) => (r.action = v as any))),
