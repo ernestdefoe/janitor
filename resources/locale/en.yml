@@ -1,5 +1,11 @@
 ernestdefoe-janitor:
   admin:
+    maintenance:
+      migrate_button: Run Migrations
+      assets_button: Publish Assets
+      migrated: Migrations complete — reloading so everything picks up the changes.
+      published: Assets published.
+      failed: The maintenance task failed — check the Flarum log for details.
     settings:
       dry_run: "Global dry-run"
       dry_run_help: "When on, all rules (including the scheduler and the Run button) only PREVIEW — they log what they would do but change nothing. Turn off to let rules act for real."
