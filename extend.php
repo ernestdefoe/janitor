@@ -25,12 +25,7 @@ return [
         ->patch('/janitor/rules/{id}', 'janitor.rules.update', Controller\SaveRuleController::class)
         ->delete('/janitor/rules/{id}', 'janitor.rules.delete', Controller\DeleteRuleController::class)
         ->post('/janitor/rules/{id}/run', 'janitor.rules.run', Controller\RunRuleController::class)
-        ->get('/janitor/log', 'janitor.log', Controller\ListLogController::class)
-        // Maintenance chores from the dashboard tools menu — the in-process
-        // equivalents of `php flarum migrate` / `assets:publish` for admins
-        // without shell access. Both assert admin inside the controller.
-        ->post('/janitor/maintenance/migrate', 'janitor.maintenance.migrate', Controller\RunMigrationsController::class)
-        ->post('/janitor/maintenance/assets', 'janitor.maintenance.assets', Controller\PublishAssetsController::class),
+        ->get('/janitor/log', 'janitor.log', Controller\ListLogController::class),
 
     // ---- The scheduled worker ----------------------------------------------
     // Registers `janitor:run` and runs it every 15 minutes. The command itself
