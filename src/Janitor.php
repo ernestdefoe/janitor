@@ -25,6 +25,15 @@ class Janitor
     protected ?User $actor = null;
     protected bool $actorResolved = false;
 
+    /** The log keeps this many newest rows; the admin page shows the latest 100. */
+    public const LOG_KEEP = 1000;
+
+    /** Schema answers, asked once per process instead of once per discussion. */
+    protected array $schemaCache = [];
+
+    /** Tags whose discussion_count changed during the current rule run. */
+    protected array $dirtyTags = [];
+
     public function __construct(
         protected ConnectionInterface $db,
         protected SettingsRepositoryInterface $settings,
@@ -74,12 +83,21 @@ class Janitor
         $matches = $this->query($rule)->limit($cap)->get();
 
         $applied = 0;
-        foreach ($matches as $discussion) {
-            if (! $dry) {
-                $this->apply($rule, $discussion);
-                $applied++;
+        $this->dirtyTags = [];
+        try {
+            foreach ($matches as $discussion) {
+                if (! $dry) {
+                    $this->apply($rule, $discussion);
+                    $applied++;
+                }
+                $this->log($rule, $discussion, $dry);
             }
-            $this->log($rule, $discussion, $dry);
+        } finally {
+            // One COUNT per touched tag for the whole run, not one per
+            // discussion: a 100-discussion move used to recount the same tag
+            // 100 times.
+            $this->flushRecounts();
+            $this->pruneLog();
         }
 
         if ($touchSchedule) {
@@ -104,8 +122,7 @@ class Janitor
     /** Build the discussion query for a rule (scope + conditions + safety guards). */
     protected function query(Rule $rule): Builder
     {
-        $schema = $this->db->getSchemaBuilder();
-        $hasPivot = $schema->hasTable('discussion_tag');
+        $hasPivot = $this->hasTable('discussion_tag');
 
         $q = Discussion::query()->where('is_private', false)->whereNull('hidden_at');
 
@@ -151,10 +168,10 @@ class Janitor
         // could never match the very threads it exists to unlock.
         $includeSticky = ! empty($c['includeSticky']);
         $includeLocked = ! empty($c['includeLocked']) || $rule->action === 'unlock';
-        if (! $includeSticky && $schema->hasColumn('discussions', 'is_sticky')) {
+        if (! $includeSticky && $this->hasColumn('discussions', 'is_sticky')) {
             $q->where(fn ($w) => $w->where('is_sticky', false)->orWhereNull('is_sticky'));
         }
-        if (! $includeLocked && $schema->hasColumn('discussions', 'is_locked')) {
+        if (! $includeLocked && $this->hasColumn('discussions', 'is_locked')) {
             $q->where(fn ($w) => $w->where('is_locked', false)->orWhereNull('is_locked'));
         }
 
@@ -163,7 +180,6 @@ class Janitor
 
     protected function apply(Rule $rule, Discussion $d): void
     {
-        $schema = $this->db->getSchemaBuilder();
         $actor = $this->actor();
 
         switch ($rule->action) {
@@ -175,7 +191,7 @@ class Janitor
             case 'delete':
                 $tagIds = $this->discussionTagIds($d->id);
                 $this->db->table('posts')->where('discussion_id', $d->id)->delete();
-                if ($schema->hasTable('discussion_tag')) {
+                if ($this->hasTable('discussion_tag')) {
                     $this->db->table('discussion_tag')->where('discussion_id', $d->id)->delete();
                 }
                 $d->delete();
@@ -185,7 +201,7 @@ class Janitor
 
             case 'lock':
             case 'unlock':
-                if ($schema->hasColumn('discussions', 'is_locked')) {
+                if ($this->hasColumn('discussions', 'is_locked')) {
                     $d->is_locked = $rule->action === 'lock';
                     $d->save();
                     $this->dispatchExt(
@@ -247,7 +263,7 @@ class Janitor
 
     protected function attach(Discussion $d, array $tagIds): void
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('discussion_tag')) {
+        if (! $this->hasTable('discussion_tag')) {
             return;
         }
         foreach (array_filter($tagIds) as $tid) {
@@ -262,7 +278,7 @@ class Janitor
     protected function detach(Discussion $d, array $tagIds): void
     {
         $tagIds = array_filter($tagIds);
-        if (! $tagIds || ! $this->db->getSchemaBuilder()->hasTable('discussion_tag')) {
+        if (! $tagIds || ! $this->hasTable('discussion_tag')) {
             return;
         }
         $this->db->table('discussion_tag')->where('discussion_id', $d->id)->whereIn('tag_id', $tagIds)->delete();
@@ -271,21 +287,31 @@ class Janitor
 
     protected function discussionTagIds(int $discussionId): array
     {
-        if (! $this->db->getSchemaBuilder()->hasTable('discussion_tag')) {
+        if (! $this->hasTable('discussion_tag')) {
             return [];
         }
 
         return $this->db->table('discussion_tag')->where('discussion_id', $discussionId)->pluck('tag_id')->all();
     }
 
-    /** Keep flarum/tags' cached discussion_count honest after retagging. */
+    /** Mark tags whose cached discussion_count must be recomputed after the run. */
     protected function recount(array $tagIds): void
     {
-        $schema = $this->db->getSchemaBuilder();
-        if (! $schema->hasTable('tags') || ! $schema->hasColumn('tags', 'discussion_count')) {
+        foreach (array_filter($tagIds) as $tid) {
+            $this->dirtyTags[(int) $tid] = true;
+        }
+    }
+
+    /** Keep flarum/tags' cached discussion_count honest after retagging. */
+    protected function flushRecounts(): void
+    {
+        $tagIds = array_keys($this->dirtyTags);
+        $this->dirtyTags = [];
+
+        if (! $tagIds || ! $this->hasTable('tags') || ! $this->hasColumn('tags', 'discussion_count')) {
             return;
         }
-        foreach (array_unique(array_filter($tagIds)) as $tid) {
+        foreach ($tagIds as $tid) {
             $count = $this->db->table('discussion_tag')
                 ->join('discussions', 'discussions.id', '=', 'discussion_tag.discussion_id')
                 ->where('discussion_tag.tag_id', (int) $tid)
@@ -294,6 +320,31 @@ class Janitor
                 ->count();
             $this->db->table('tags')->where('id', (int) $tid)->update(['discussion_count' => $count]);
         }
+    }
+
+    /**
+     * Keep the log bounded. A dry-run rule set to "every run" logs up to the
+     * per-run cap every fifteen minutes, so an unpruned table grows by
+     * thousands of rows a day for as long as the forum exists. Only the newest
+     * 100 are ever shown; the newest LOG_KEEP are kept.
+     */
+    protected function pruneLog(): void
+    {
+        $floor = LogEntry::query()->orderByDesc('id')->skip(self::LOG_KEEP - 1)->value('id');
+
+        if ($floor !== null) {
+            LogEntry::query()->where('id', '<', $floor)->delete();
+        }
+    }
+
+    protected function hasTable(string $table): bool
+    {
+        return $this->schemaCache['t:'.$table] ??= $this->db->getSchemaBuilder()->hasTable($table);
+    }
+
+    protected function hasColumn(string $table, string $column): bool
+    {
+        return $this->schemaCache['c:'.$table.'.'.$column] ??= $this->db->getSchemaBuilder()->hasColumn($table, $column);
     }
 
     protected function log(Rule $rule, Discussion $d, bool $dry): void
