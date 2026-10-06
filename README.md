@@ -55,6 +55,10 @@ php flarum migrate
 php flarum cache:clear
 ```
 
+## Discuss
+
+Questions, ideas and release notes: [Janitor on discuss.flarum.org](https://discuss.flarum.org/d/39491-janitor-built-with-ai).
+
 ## Licence
 
 [MIT](LICENSE.md) © ernestdefoe
