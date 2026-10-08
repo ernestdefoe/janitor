@@ -3,3 +3,6 @@
 composer.lock
 .DS_Store
 Thumbs.db
+.phpunit.result.cache
+/tests/integration/tmp
+/js/coverage-ts
