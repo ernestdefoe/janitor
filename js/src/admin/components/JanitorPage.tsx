@@ -44,10 +44,7 @@ export default class JanitorPage extends Component {
       m('.Form-group', [
         m('label', t('rules.title')),
         m('p.helpText', t('rules.help')),
-        m(
-          '.JanitorRules',
-          this.rules.length ? this.rules.map((r) => this.ruleRow(r)) : m('.JanitorRules-empty', t('rules.none'))
-        ),
+        m('.JanitorRules', this.rules.length ? this.rules.map((r) => this.ruleRow(r)) : m('.JanitorRules-empty', t('rules.none'))),
         Button.component({ className: 'Button', icon: 'fas fa-plus', onclick: () => this.edit() }, t('rules.add')),
       ]),
       this.logSection(),
@@ -57,10 +54,7 @@ export default class JanitorPage extends Component {
   ruleRow(r: Rule) {
     return m('.JanitorRule', { key: r.id }, [
       m('.JanitorRule-main', [
-        m('.JanitorRule-name', [
-          m('span.JanitorRule-dot', { className: r.enabled ? 'is-on' : '' }),
-          m('span', r.name),
-        ]),
+        m('.JanitorRule-name', [m('span.JanitorRule-dot', { className: r.enabled ? 'is-on' : '' }), m('span', r.name)]),
         m('.JanitorRule-summary', this.summarize(r)),
       ]),
       m('.JanitorRule-actions', [

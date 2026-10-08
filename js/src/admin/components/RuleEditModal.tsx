@@ -54,18 +54,46 @@ export default class RuleEditModal extends Modal<RuleEditModalAttrs> {
       m('.JanitorRuleModal-row', [
         this.group(
           t('cond.age_days'),
-          m('input.FormControl', { type: 'number', min: 0, value: c.ageDays ?? '', oninput: (e: any) => (c.ageDays = e.target.value === '' ? '' : Number(e.target.value)) })
+          m('input.FormControl', {
+            type: 'number',
+            min: 0,
+            value: c.ageDays ?? '',
+            oninput: (e: any) => (c.ageDays = e.target.value === '' ? '' : Number(e.target.value)),
+          })
         ),
         this.group(
           t('cond.age_basis'),
-          this.select(c.ageBasis || 'last_post', [['last_post', t('cond.basis_last_post')], ['created', t('cond.basis_created')]], (v) => (c.ageBasis = v as any))
+          this.select(
+            c.ageBasis || 'last_post',
+            [
+              ['last_post', t('cond.basis_last_post')],
+              ['created', t('cond.basis_created')],
+            ],
+            (v) => (c.ageBasis = v as any)
+          )
         ),
       ]),
       this.group(t('cond.has_tags'), this.tagPicker((c.hasTagIds = c.hasTagIds || []))),
       this.group(t('cond.lacks_tags'), this.tagPicker((c.lacksTagIds = c.lacksTagIds || []))),
       m('.JanitorRuleModal-row', [
-        this.group(t('cond.min_replies'), m('input.FormControl', { type: 'number', min: 0, value: c.minReplies ?? '', oninput: (e: any) => (c.minReplies = e.target.value === '' ? '' : Number(e.target.value)) })),
-        this.group(t('cond.max_replies'), m('input.FormControl', { type: 'number', min: 0, value: c.maxReplies ?? '', oninput: (e: any) => (c.maxReplies = e.target.value === '' ? '' : Number(e.target.value)) })),
+        this.group(
+          t('cond.min_replies'),
+          m('input.FormControl', {
+            type: 'number',
+            min: 0,
+            value: c.minReplies ?? '',
+            oninput: (e: any) => (c.minReplies = e.target.value === '' ? '' : Number(e.target.value)),
+          })
+        ),
+        this.group(
+          t('cond.max_replies'),
+          m('input.FormControl', {
+            type: 'number',
+            min: 0,
+            value: c.maxReplies ?? '',
+            oninput: (e: any) => (c.maxReplies = e.target.value === '' ? '' : Number(e.target.value)),
+          })
+        ),
       ]),
       m('.Form-group', [
         m(Switch, { state: !!c.includeLocked, onchange: (v: boolean) => (c.includeLocked = v) }, t('cond.include_locked')),
@@ -74,12 +102,29 @@ export default class RuleEditModal extends Modal<RuleEditModalAttrs> {
       m('.Form-group', m(Switch, { state: !!c.includeSticky, onchange: (v: boolean) => (c.includeSticky = v) }, t('cond.include_sticky'))),
 
       m('h4.JanitorRuleModal-h', t('rules.action')),
-      this.group(t('rules.action'), this.select(r.action!, ACTIONS.map((a) => [a, t('action.' + a)]), (v) => (r.action = v as any))),
+      this.group(
+        t('rules.action'),
+        this.select(
+          r.action!,
+          ACTIONS.map((a) => [a, t('action.' + a)]),
+          (v) => (r.action = v as any)
+        )
+      ),
       r.action === 'delete' ? m('.JanitorRuleModal-warn', [m('i.fas.fa-triangle-exclamation'), ' ', t('rules.delete_warn')]) : null,
       needsTags ? this.group(t('rules.action_tags'), this.tagPicker(r.action_tag_ids!), t('rules.action_tags_help')) : null,
-      this.group(t('rules.frequency'), this.select(r.frequency!, FREQS.map((f) => [f, t('freq.' + f)]), (v) => (r.frequency = v as any))),
+      this.group(
+        t('rules.frequency'),
+        this.select(
+          r.frequency!,
+          FREQS.map((f) => [f, t('freq.' + f)]),
+          (v) => (r.frequency = v as any)
+        )
+      ),
 
-      m('.Form-group', Button.component({ className: 'Button Button--primary Button--block', loading: this.loading, onclick: () => this.submit() }, t('rules.save'))),
+      m(
+        '.Form-group',
+        Button.component({ className: 'Button Button--primary Button--block', loading: this.loading, onclick: () => this.submit() }, t('rules.save'))
+      ),
     ]);
   }
 
@@ -88,7 +133,11 @@ export default class RuleEditModal extends Modal<RuleEditModalAttrs> {
   }
 
   select(val: string, opts: [string, string][], onchange: (v: string) => void) {
-    return m('select.FormControl', { value: val, onchange: (e: any) => onchange(e.target.value) }, opts.map(([v, l]) => m('option', { value: v, selected: val === v }, l)));
+    return m(
+      'select.FormControl',
+      { value: val, onchange: (e: any) => onchange(e.target.value) },
+      opts.map(([v, l]) => m('option', { value: v, selected: val === v }, l))
+    );
   }
 
   tagPicker(selected: number[]) {
