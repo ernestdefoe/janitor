@@ -1,5 +1,5 @@
 import app from 'flarum/admin/app';
-import Modal from 'flarum/common/components/Modal';
+import Modal, { IInternalModalAttrs } from 'flarum/common/components/Modal';
 import Button from 'flarum/common/components/Button';
 import Switch from 'flarum/common/components/Switch';
 import { saveRule, type Rule, type RuleAction, type Frequency } from '../../common/api';
@@ -10,7 +10,13 @@ const t = (k: string, p?: any): any => app.translator.trans('ernestdefoe-janitor
 const ACTIONS: RuleAction[] = ['hide', 'move', 'add_tag', 'remove_tag', 'lock', 'unlock', 'delete'];
 const FREQS: Frequency[] = ['every_run', 'hourly', 'daily', 'weekly'];
 
-export default class RuleEditModal extends Modal {
+interface RuleEditModalAttrs extends IInternalModalAttrs {
+  rule?: Rule;
+  tags?: any[];
+  onsave?: () => void;
+}
+
+export default class RuleEditModal extends Modal<RuleEditModalAttrs> {
   rule!: Partial<Rule>;
   tags: any[] = [];
   loading = false;
@@ -118,7 +124,8 @@ export default class RuleEditModal extends Modal {
       })
       .catch((e) => {
         this.loading = false;
-        this.onerror(e);
+        // Modal has no onerror() (FormModal does): show the API's alert in the modal.
+        this.alertAttrs = e.alert;
         m.redraw();
       });
   }
