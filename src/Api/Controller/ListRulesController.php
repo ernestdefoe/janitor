@@ -2,8 +2,8 @@
 
 namespace ErnestDefoe\Janitor\Api\Controller;
 
-use Flarum\Http\RequestUtil;
 use ErnestDefoe\Janitor\Rule;
+use Flarum\Http\RequestUtil;
 use Laminas\Diactoros\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

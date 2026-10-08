@@ -13,10 +13,10 @@ use Illuminate\Console\Scheduling\Event;
 
 return [
     (new Extend\Frontend('admin'))
-        ->js(__DIR__ . '/js/dist/admin.js')
-        ->css(__DIR__ . '/less/admin.less'),
+        ->js(__DIR__.'/js/dist/admin.js')
+        ->css(__DIR__.'/less/admin.less'),
 
-    new Extend\Locales(__DIR__ . '/resources/locale'),
+    new Extend\Locales(__DIR__.'/resources/locale'),
 
     // ---- Admin JSON API (custom controllers, admin-gated) -------------------
     (new Extend\Routes('api'))

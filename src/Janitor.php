@@ -85,6 +85,7 @@ class Janitor
         $applied = 0;
         $this->dirtyTags = [];
         $log = [];
+
         try {
             foreach ($matches as $discussion) {
                 if (! $dry) {
@@ -216,7 +217,7 @@ class Janitor
                     $d->setAttribute('is_locked', $rule->action === 'lock');
                     $d->save();
                     $this->dispatchExt(
-                        'Flarum\\Lock\\Event\\DiscussionWas' . ($rule->action === 'lock' ? 'Locked' : 'Unlocked'),
+                        'Flarum\\Lock\\Event\\DiscussionWas'.($rule->action === 'lock' ? 'Locked' : 'Unlocked'),
                         fn ($cls) => $actor ? new $cls($d, $actor) : null
                     );
                 }
@@ -263,6 +264,7 @@ class Janitor
         if (! class_exists($class)) {
             return;
         }
+
         try {
             if ($event = $make($class)) {
                 $this->events->dispatch($event);
