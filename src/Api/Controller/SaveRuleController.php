@@ -39,7 +39,7 @@ class SaveRuleController implements RequestHandlerInterface
         return new JsonResponse(['data' => $rule], $id ? 200 : 201);
     }
 
-    private function ids($value): array
+    private function ids(mixed $value): array
     {
         return array_values(array_filter(array_map('intval', (array) $value)));
     }
@@ -47,16 +47,16 @@ class SaveRuleController implements RequestHandlerInterface
     private function cleanConditions(array $c): array
     {
         $out = [];
-        if (isset($c['ageDays']) && $c['ageDays'] !== '' && $c['ageDays'] !== null) {
+        if (isset($c['ageDays']) && $c['ageDays'] !== '') {
             $out['ageDays'] = max(0, (int) $c['ageDays']);
         }
         $out['ageBasis'] = ($c['ageBasis'] ?? 'last_post') === 'created' ? 'created' : 'last_post';
         $out['hasTagIds'] = $this->ids($c['hasTagIds'] ?? []);
         $out['lacksTagIds'] = $this->ids($c['lacksTagIds'] ?? []);
-        if (isset($c['minReplies']) && $c['minReplies'] !== '' && $c['minReplies'] !== null) {
+        if (isset($c['minReplies']) && $c['minReplies'] !== '') {
             $out['minReplies'] = max(0, (int) $c['minReplies']);
         }
-        if (isset($c['maxReplies']) && $c['maxReplies'] !== '' && $c['maxReplies'] !== null) {
+        if (isset($c['maxReplies']) && $c['maxReplies'] !== '') {
             $out['maxReplies'] = max(0, (int) $c['maxReplies']);
         }
         // Per-rule opt-outs from the sticky/locked safety guard (default: protected).

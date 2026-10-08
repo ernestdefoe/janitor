@@ -84,19 +84,25 @@ class Janitor
 
         $applied = 0;
         $this->dirtyTags = [];
+        $log = [];
         try {
             foreach ($matches as $discussion) {
                 if (! $dry) {
                     $this->apply($rule, $discussion);
                     $applied++;
                 }
-                $this->log($rule, $discussion, $dry);
+                $log[] = $this->logRow($rule, $discussion, $dry);
             }
         } finally {
             // One COUNT per touched tag for the whole run, not one per
             // discussion: a 100-discussion move used to recount the same tag
             // 100 times.
             $this->flushRecounts();
+            // And one insert for the run's log, not one per discussion. What
+            // was applied before a failure is still logged.
+            if ($log) {
+                LogEntry::query()->insert($log);
+            }
             $this->pruneLog();
         }
 
@@ -119,7 +125,11 @@ class Janitor
         return (bool) $this->settings->get('ernestdefoe-janitor.dry_run');
     }
 
-    /** Build the discussion query for a rule (scope + conditions + safety guards). */
+    /**
+     * Build the discussion query for a rule (scope + conditions + safety guards).
+     *
+     * @return Builder<Discussion>
+     */
     protected function query(Rule $rule): Builder
     {
         $hasPivot = $this->hasTable('discussion_tag');
@@ -154,10 +164,10 @@ class Janitor
         }
 
         // Replies = comment_count - 1 (the first post is a comment in Flarum).
-        if (isset($c['minReplies']) && $c['minReplies'] !== '' && $c['minReplies'] !== null) {
+        if (isset($c['minReplies']) && $c['minReplies'] !== '') {
             $q->where('comment_count', '>=', ((int) $c['minReplies']) + 1);
         }
-        if (isset($c['maxReplies']) && $c['maxReplies'] !== '' && $c['maxReplies'] !== null) {
+        if (isset($c['maxReplies']) && $c['maxReplies'] !== '') {
             $q->where('comment_count', '<=', ((int) $c['maxReplies']) + 1);
         }
 
@@ -202,7 +212,8 @@ class Janitor
             case 'lock':
             case 'unlock':
                 if ($this->hasColumn('discussions', 'is_locked')) {
-                    $d->is_locked = $rule->action === 'lock';
+                    // flarum/lock's column, so set as an attribute.
+                    $d->setAttribute('is_locked', $rule->action === 'lock');
                     $d->save();
                     $this->dispatchExt(
                         'Flarum\\Lock\\Event\\DiscussionWas' . ($rule->action === 'lock' ? 'Locked' : 'Unlocked'),
@@ -347,9 +358,10 @@ class Janitor
         return $this->schemaCache['c:'.$table.'.'.$column] ??= $this->db->getSchemaBuilder()->hasColumn($table, $column);
     }
 
-    protected function log(Rule $rule, Discussion $d, bool $dry): void
+    /** @return array<string, mixed> one janitor_log row */
+    protected function logRow(Rule $rule, Discussion $d, bool $dry): array
     {
-        LogEntry::create([
+        return [
             'rule_id' => $rule->id,
             'rule_name' => $rule->name,
             'action' => $rule->action,
@@ -357,6 +369,6 @@ class Janitor
             'discussion_title' => mb_substr((string) $d->title, 0, 250),
             'dry_run' => $dry,
             'created_at' => Carbon::now(),
-        ]);
+        ];
     }
 }

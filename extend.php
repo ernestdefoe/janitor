@@ -34,7 +34,7 @@ return [
     // scheduler: `* * * * * php /path/to/flarum schedule:run`.
     (new Extend\Console())
         ->command(RunJanitorCommand::class)
-        ->schedule('janitor:run', function (Event $event) {
+        ->schedule(RunJanitorCommand::class, function (Event $event) {
             $event->everyFifteenMinutes()->withoutOverlapping();
         }),
 ];
