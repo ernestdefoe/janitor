@@ -4,6 +4,7 @@ namespace ErnestDefoe\Janitor\Tests\integration\api;
 
 use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
+use Flarum\Post\Post;
 use Flarum\Tags\Tag;
 use Flarum\Testing\integration\RetrievesAuthorizedUsers;
 use Flarum\Testing\integration\TestCase;
@@ -58,7 +59,10 @@ class JanitorTest extends TestCase
      */
     protected function allowedRepeatedQueries(): array
     {
-        return ['hidden_user_id', 'pivot_discussion_id', 'discussion_count'];
+        // A delete goes through Discussion::delete() like core's own, whose
+        // hooks clear each discussion's notifications, posts and tag pivot:
+        // one set of deletes per discussion, as in core.
+        return ['hidden_user_id', 'pivot_discussion_id', 'discussion_count', 'delete from'];
     }
 
     public static function adminRoutes(): array
@@ -183,5 +187,33 @@ class JanitorTest extends TestCase
         $this->assertSame(4, $body['data']['applied']);
         $this->assertTrue($body['data']['capped']);
         $this->assertSame([1, 2, 3, 4, 11], $this->hidden());
+    }
+
+    #[Test]
+    public function a_delete_rule_removes_posts_their_notifications_and_stale_counts()
+    {
+        $this->prepareDatabase([
+            Post::class => [
+                ['id' => 1, 'discussion_id' => 1, 'number' => 1, 'user_id' => 2, 'type' => 'comment', 'content' => '<t>a</t>', 'created_at' => Carbon::now()],
+                ['id' => 2, 'discussion_id' => 1, 'number' => 2, 'user_id' => 1, 'type' => 'comment', 'content' => '<t>b</t>', 'created_at' => Carbon::now()],
+                ['id' => 3, 'discussion_id' => 7, 'number' => 1, 'user_id' => 1, 'type' => 'comment', 'content' => '<t>c</t>', 'created_at' => Carbon::now()],
+            ],
+            'notifications' => [
+                ['id' => 1, 'user_id' => 2, 'from_user_id' => 1, 'type' => 'discussionRenamed', 'subject_id' => 1, 'created_at' => Carbon::now()],
+            ],
+        ]);
+        $this->database()->table('janitor_rules')->where('id', 1)->update(['action' => 'delete']);
+        $this->database()->table('users')->update(['comment_count' => 99]);
+
+        [$status, $body] = $this->call('POST', '/api/janitor/rules/1/run', 1);
+
+        $this->assertSame(200, $status, json_encode($body));
+        $this->assertSame(6, $body['data']['applied']);
+        $this->assertSame(0, $this->database()->table('discussions')->whereIn('id', [1, 2, 3, 4, 5, 6])->count());
+        $this->assertSame([3], $this->database()->table('posts')->pluck('id')->map(fn ($id) => (int) $id)->all());
+        $this->assertSame(0, $this->database()->table('notifications')->count(), 'A deleted discussion leaves no notification behind');
+        $this->assertSame(1, (int) $this->database()->table('users')->where('id', 1)->value('comment_count'), 'The replier\'s count drops');
+        $this->assertSame(0, (int) $this->database()->table('users')->where('id', 2)->value('comment_count'));
+        $this->assertSame(0, $this->database()->table('discussion_tag')->where('tag_id', 1)->whereIn('discussion_id', [1, 2, 3, 4, 5, 6])->count());
     }
 }

@@ -5,6 +5,7 @@ namespace ErnestDefoe\Janitor;
 use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
 use Flarum\Discussion\Event\Deleted;
+use Flarum\Discussion\Event\Deleting;
 use Flarum\Discussion\Event\Hidden;
 use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
@@ -12,6 +13,7 @@ use Flarum\User\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Psr\Log\LoggerInterface;
 
 /**
  * The rule engine. For each rule it builds a discussion query from the rule's
@@ -34,10 +36,14 @@ class Janitor
     /** Tags whose discussion_count changed during the current rule run. */
     protected array $dirtyTags = [];
 
+    /** Repliers whose comment_count must be refreshed after the run. */
+    protected array $dirtyUsers = [];
+
     public function __construct(
         protected ConnectionInterface $db,
         protected SettingsRepositoryInterface $settings,
-        protected Dispatcher $events
+        protected Dispatcher $events,
+        protected LoggerInterface $logger
     ) {
     }
 
@@ -84,7 +90,12 @@ class Janitor
 
         $applied = 0;
         $this->dirtyTags = [];
+        $this->dirtyUsers = [];
         $log = [];
+
+        if (! $dry && $rule->action === 'delete' && $matches->isNotEmpty()) {
+            $this->collectForDelete($matches->modelKeys());
+        }
 
         try {
             foreach ($matches as $discussion) {
@@ -99,6 +110,7 @@ class Janitor
             // discussion: a 100-discussion move used to recount the same tag
             // 100 times.
             $this->flushRecounts();
+            $this->flushUserCounts();
             // And one insert for the run's log, not one per discussion. What
             // was applied before a failure is still logged.
             if ($log) {
@@ -200,14 +212,17 @@ class Janitor
                 break;
 
             case 'delete':
-                $tagIds = $this->discussionTagIds($d->id);
-                $this->db->table('posts')->where('discussion_id', $d->id)->delete();
-                if ($this->hasTable('discussion_tag')) {
-                    $this->db->table('discussion_tag')->where('discussion_id', $d->id)->delete();
+                // The same path as core's own discussion delete: Deleting
+                // first, then the model, whose deleting/deleted hooks clear
+                // the posts' notifications and the posts themselves (deleting
+                // the posts first left those notifications behind).
+                // flarum/tags removes the tag pivot rows; the tags and
+                // repliers to recount were collected for the whole run.
+                if ($actor) {
+                    $this->events->dispatch(new Deleting($d, $actor));
                 }
                 $d->delete();
                 $this->events->dispatch(new Deleted($d, $actor));
-                $this->recount($tagIds);
                 break;
 
             case 'lock':
@@ -244,6 +259,20 @@ class Janitor
         }
     }
 
+    /**
+     * Before a delete run: the tags whose counts and the repliers whose
+     * comment counts change, in one query each for the whole run.
+     */
+    protected function collectForDelete(array $discussionIds): void
+    {
+        if ($this->hasTable('discussion_tag')) {
+            $this->recount($this->db->table('discussion_tag')->whereIn('discussion_id', $discussionIds)->distinct()->pluck('tag_id')->all());
+        }
+        foreach ($this->db->table('posts')->whereIn('discussion_id', $discussionIds)->where('type', 'comment')->whereNotNull('user_id')->distinct()->pluck('user_id') as $uid) {
+            $this->dirtyUsers[(int) $uid] = true;
+        }
+    }
+
     /** Fire flarum/tags' DiscussionWasTagged so audit logs record retag/move. */
     protected function dispatchTagged(Discussion $d, array $oldTagIds, ?User $actor): void
     {
@@ -270,7 +299,9 @@ class Janitor
                 $this->events->dispatch($event);
             }
         } catch (\Throwable $e) {
-            // Audit integration is best-effort and must never break the action.
+            // Audit integration is best-effort and must never break the action,
+            // but a failing listener should still show up in the log.
+            $this->logger->warning('[janitor] '.$class.' listener failed: '.$e->getMessage(), ['exception' => $e]);
         }
     }
 
@@ -332,6 +363,23 @@ class Janitor
                 ->whereNull('discussions.hidden_at')
                 ->count();
             $this->db->table('tags')->where('id', (int) $tid)->update(['discussion_count' => $count]);
+        }
+    }
+
+    /**
+     * A deleted discussion's replies no longer count toward their authors'
+     * comment_count. Core's Deleted listener refreshes only the starter, so
+     * refresh every replier once per run.
+     */
+    protected function flushUserCounts(): void
+    {
+        $ids = array_keys($this->dirtyUsers);
+        $this->dirtyUsers = [];
+
+        if ($ids) {
+            foreach (User::query()->whereIn('id', $ids)->get() as $user) {
+                $user->refreshCommentCount()->save();
+            }
         }
     }
 
