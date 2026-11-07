@@ -158,3 +158,70 @@
   color: var(--muted-color, #888);
   flex: 0 0 auto;
 }
+
+/* Rubric prefix picker: each prefix drawn as its own coloured label */
+.JanitorPrefixPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.JanitorPrefix {
+  border: 2px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 1px;
+  cursor: pointer;
+  opacity: 0.6;
+  max-width: 100%;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.85;
+  }
+  &.is-on {
+    opacity: 1;
+    border-color: var(--primary-color, #4d698e);
+  }
+}
+.JanitorPrefix-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Phones: the rule's buttons and each log row's columns wrap instead of
+   squeezing the text or running off the edge. */
+@media (max-width: 767px) {
+  .JanitorRule {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .JanitorRule-main {
+    flex-basis: 100%;
+  }
+  .JanitorRule-actions {
+    flex-wrap: wrap;
+  }
+  .JanitorLog-row {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .JanitorLog-disc {
+    flex-basis: 100%;
+    order: 1;
+    white-space: normal;
+  }
+}

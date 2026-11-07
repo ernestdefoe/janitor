@@ -13,7 +13,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 /** Create (POST) or update (PATCH /{id}) a rule. */
 class SaveRuleController implements RequestHandlerInterface
 {
-    public const ACTIONS = ['hide', 'delete', 'lock', 'unlock', 'add_tag', 'remove_tag', 'move'];
+    public const ACTIONS = ['hide', 'delete', 'lock', 'unlock', 'add_tag', 'remove_tag', 'move', 'set_prefix', 'remove_prefix'];
     public const FREQUENCIES = ['every_run', 'hourly', 'daily', 'weekly'];
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -32,6 +32,7 @@ class SaveRuleController implements RequestHandlerInterface
         $rule->conditions = $this->cleanConditions((array) ($data['conditions'] ?? []));
         $rule->action = in_array($data['action'] ?? '', self::ACTIONS, true) ? $data['action'] : 'hide';
         $rule->action_tag_ids = $this->ids($data['action_tag_ids'] ?? []);
+        $rule->action_prefix_id = $rule->action === 'set_prefix' ? ((int) ($data['action_prefix_id'] ?? 0) ?: null) : null;
         $rule->frequency = in_array($data['frequency'] ?? '', self::FREQUENCIES, true) ? $data['frequency'] : 'daily';
 
         $rule->save();
@@ -59,6 +60,10 @@ class SaveRuleController implements RequestHandlerInterface
         if (isset($c['maxReplies']) && $c['maxReplies'] !== '') {
             $out['maxReplies'] = max(0, (int) $c['maxReplies']);
         }
+        // Rubric thread prefixes (used only while Rubric is enabled).
+        $out['hasPrefixIds'] = $this->ids($c['hasPrefixIds'] ?? []);
+        $out['lacksPrefixIds'] = $this->ids($c['lacksPrefixIds'] ?? []);
+        $out['noPrefix'] = ! empty($c['noPrefix']);
         // Per-rule opt-outs from the sticky/locked safety guard (default: protected).
         $out['includeSticky'] = ! empty($c['includeSticky']);
         $out['includeLocked'] = ! empty($c['includeLocked']);

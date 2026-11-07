@@ -7,6 +7,7 @@ use Flarum\Discussion\Discussion;
 use Flarum\Discussion\Event\Deleted;
 use Flarum\Discussion\Event\Deleting;
 use Flarum\Discussion\Event\Hidden;
+use Flarum\Extension\ExtensionManager;
 use Flarum\Group\Group;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
@@ -39,11 +40,17 @@ class Janitor
     /** Repliers whose comment_count must be refreshed after the run. */
     protected array $dirtyUsers = [];
 
+    /** Actions that need Rubric (ernestdefoe/rubric) installed and enabled. */
+    public const PREFIX_ACTIONS = ['set_prefix', 'remove_prefix'];
+
+    protected const RUBRIC_PREFIX = 'Ernestdefoe\\Rubric\\Prefix';
+
     public function __construct(
         protected ConnectionInterface $db,
         protected SettingsRepositoryInterface $settings,
         protected Dispatcher $events,
-        protected LoggerInterface $logger
+        protected LoggerInterface $logger,
+        protected ExtensionManager $extensions
     ) {
     }
 
@@ -98,8 +105,17 @@ class Janitor
         }
 
         try {
+            if (! $dry && $matches->isNotEmpty() && in_array($rule->action, self::PREFIX_ACTIONS, true)) {
+                // A prefix is one column, which Rubric's discussion field and
+                // filter read directly: one UPDATE for the whole run. Which
+                // discussions may take the prefix was settled in query().
+                $applied = $this->db->table('discussions')->whereIn('id', $matches->modelKeys())->update([
+                    'rubric_prefix_id' => $rule->action === 'set_prefix' ? (int) $rule->action_prefix_id : null,
+                ]);
+            }
+
             foreach ($matches as $discussion) {
-                if (! $dry) {
+                if (! $dry && ! in_array($rule->action, self::PREFIX_ACTIONS, true)) {
                     $this->apply($rule, $discussion);
                     $applied++;
                 }
@@ -176,6 +192,12 @@ class Janitor
             }
         }
 
+        if (! $this->prefixConditions($q, $rule, $c)) {
+            // The rule needs Rubric (or a prefix that is gone): match nothing
+            // rather than ignore a condition and act on too much.
+            $q->whereRaw('1 = 0');
+        }
+
         // Replies = comment_count - 1 (the first post is a comment in Flarum).
         if (isset($c['minReplies']) && $c['minReplies'] !== '') {
             $q->where('comment_count', '>=', ((int) $c['minReplies']) + 1);
@@ -199,6 +221,74 @@ class Janitor
         }
 
         return $q->orderBy('id');
+    }
+
+    /**
+     * Rubric's prefix conditions and what a prefix action may touch. False when
+     * the rule uses Rubric but Rubric is off or the prefix to set is gone.
+     *
+     * @param Builder<Discussion> $q
+     */
+    protected function prefixConditions(Builder $q, Rule $rule, array $c): bool
+    {
+        $has = $this->ids($c['hasPrefixIds'] ?? []);
+        $lacks = $this->ids($c['lacksPrefixIds'] ?? []);
+        $none = ! empty($c['noPrefix']);
+        $action = in_array($rule->action, self::PREFIX_ACTIONS, true);
+
+        if (! $has && ! $lacks && ! $none && ! $action) {
+            return true;
+        }
+        if (! $this->rubricEnabled()) {
+            return false;
+        }
+
+        if ($has) {
+            $q->whereIn('rubric_prefix_id', $has);
+        }
+        if ($lacks) {
+            $q->where(fn ($w) => $w->whereNull('rubric_prefix_id')->orWhereNotIn('rubric_prefix_id', $lacks));
+        }
+        if ($none) {
+            $q->whereNull('rubric_prefix_id');
+        }
+
+        if ($rule->action === 'remove_prefix') {
+            $q->whereNotNull('rubric_prefix_id');
+        } elseif ($rule->action === 'set_prefix') {
+            $cls = self::RUBRIC_PREFIX;
+            $prefix = $rule->action_prefix_id ? $cls::query()->find((int) $rule->action_prefix_id) : null;
+            if (! $prefix) {
+                return false;
+            }
+
+            // Not the ones that already have it, so a rule does not re-log
+            // the same discussions every run.
+            $q->where(fn ($w) => $w->whereNull('rubric_prefix_id')->orWhere('rubric_prefix_id', '!=', $prefix->id));
+
+            // Rubric's own rule (Prefix::allowedIn): a prefix limited to some
+            // tags is skipped in discussions without one of them.
+            $only = $prefix->tagIds();
+            if ($only && $this->extensions->isEnabled('flarum-tags')) {
+                $q->whereExists(fn ($sub) => $sub->selectRaw('1')->from('discussion_tag')
+                    ->whereColumn('discussion_tag.discussion_id', 'discussions.id')->whereIn('tag_id', $only));
+            }
+        }
+
+        return true;
+    }
+
+    protected function rubricEnabled(): bool
+    {
+        return $this->schemaCache['rubric'] ??= class_exists(self::RUBRIC_PREFIX)
+            && $this->extensions->isEnabled('ernestdefoe-rubric')
+            && $this->hasColumn('discussions', 'rubric_prefix_id');
+    }
+
+    /** @return int[] */
+    protected function ids(mixed $value): array
+    {
+        return array_values(array_filter(array_map('intval', (array) $value)));
     }
 
     protected function apply(Rule $rule, Discussion $d): void

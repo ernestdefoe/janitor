@@ -16,6 +16,7 @@ use Flarum\Database\AbstractModel;
  * @property array $conditions
  * @property string $action
  * @property array $action_tag_ids
+ * @property int|null $action_prefix_id
  * @property string $frequency
  * @property \Carbon\Carbon|null $last_run_at
  */
@@ -30,6 +31,7 @@ class Rule extends AbstractModel
         'scope_tag_ids' => 'array',
         'conditions' => 'array',
         'action_tag_ids' => 'array',
+        'action_prefix_id' => 'integer',
         'last_run_at' => 'datetime',
     ];
 

@@ -1,6 +1,6 @@
 import app from 'flarum/common/app';
 
-export type RuleAction = 'hide' | 'delete' | 'lock' | 'unlock' | 'add_tag' | 'remove_tag' | 'move';
+export type RuleAction = 'hide' | 'delete' | 'lock' | 'unlock' | 'add_tag' | 'remove_tag' | 'move' | 'set_prefix' | 'remove_prefix';
 export type Frequency = 'every_run' | 'hourly' | 'daily' | 'weekly';
 
 export interface RuleConditions {
@@ -12,6 +12,9 @@ export interface RuleConditions {
   maxReplies?: number | '';
   includeLocked?: boolean;
   includeSticky?: boolean;
+  hasPrefixIds?: number[];
+  lacksPrefixIds?: number[];
+  noPrefix?: boolean;
 }
 
 export interface Rule {
@@ -22,6 +25,7 @@ export interface Rule {
   conditions: RuleConditions;
   action: RuleAction;
   action_tag_ids: number[];
+  action_prefix_id?: number | null;
   frequency: Frequency;
   last_run_at?: string | null;
 }

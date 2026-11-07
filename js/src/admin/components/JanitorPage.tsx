@@ -2,11 +2,15 @@ import app from 'flarum/admin/app';
 import Component from 'flarum/common/Component';
 import Button from 'flarum/common/components/Button';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
+import extractText from 'flarum/common/utils/extractText';
 import RuleEditModal from './RuleEditModal';
+import { prefixName } from '../../common/rubric';
 import { listRules, listLog, deleteRule, runRule, type Rule, type JanitorLog } from '../../common/api';
 
 declare const m: any;
-const t = (k: string, p?: any): any => app.translator.trans('ernestdefoe-janitor.admin.' + k, p);
+// Plain strings: these are joined into summaries and alerts, where a
+// translation with a placeholder (an array) would print stray commas.
+const t = (k: string, p?: any): string => extractText(app.translator.trans('ernestdefoe-janitor.admin.' + k, p));
 
 /** The rule manager + action log, rendered on the Janitor settings page. */
 export default class JanitorPage extends Component {
@@ -80,11 +84,15 @@ export default class JanitorPage extends Component {
     if (c.ageDays) parts.push(t('rules.older_than', { days: c.ageDays, basis: t('cond.basis_' + (c.ageBasis || 'last_post')) }));
     if ((c.hasTagIds || []).length) parts.push(t('rules.with_tags', { tags: c.hasTagIds!.map((id) => this.tagName(id)).join(', ') }));
     if ((c.lacksTagIds || []).length) parts.push(t('rules.without_tags', { tags: c.lacksTagIds!.map((id) => this.tagName(id)).join(', ') }));
+    if ((c.hasPrefixIds || []).length) parts.push(t('rules.with_prefix', { prefixes: c.hasPrefixIds!.map(prefixName).join(', ') }));
+    if ((c.lacksPrefixIds || []).length) parts.push(t('rules.without_prefix', { prefixes: c.lacksPrefixIds!.map(prefixName).join(', ') }));
+    if (c.noPrefix) parts.push(t('rules.no_prefix'));
     if (c.minReplies !== undefined && c.minReplies !== '') parts.push('≥ ' + c.minReplies + ' ' + t('cond.replies'));
     if (c.maxReplies !== undefined && c.maxReplies !== '') parts.push('≤ ' + c.maxReplies + ' ' + t('cond.replies'));
 
     const actionTags = (r.action_tag_ids || []).map((id) => this.tagName(id)).join(', ');
-    const action = t('action.' + r.action) + (actionTags ? ' → ' + actionTags : '');
+    const target = r.action === 'set_prefix' && r.action_prefix_id ? prefixName(r.action_prefix_id) : actionTags;
+    const action = t('action.' + r.action) + (target ? ' → ' + target : '');
     return `${parts.join(' · ')}  ⇒  ${action}  ·  ${t('freq.' + r.frequency)}`;
   }
 

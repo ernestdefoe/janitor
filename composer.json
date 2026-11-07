@@ -48,7 +48,8 @@
         "color": "#fff"
       },
       "optional-dependencies": [
-        "flarum/tags"
+        "flarum/tags",
+        "ernestdefoe/rubric"
       ]
     },
     "flarum-cli": {
@@ -62,7 +63,8 @@
   "require-dev": {
     "flarum/phpstan": "^2.0",
     "flarum/tags": "^2.0",
-    "flarum/testing": "^2.0"
+    "flarum/testing": "^2.0",
+    "ernestdefoe/rubric": "^1.0"
   },
   "scripts": {
     "test": [
